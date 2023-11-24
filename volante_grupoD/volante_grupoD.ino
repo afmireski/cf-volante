@@ -14,11 +14,12 @@
 
 #define GPB (1 << GP_BUTTON)
 
-#define IN_DISTANCE 600 // Distância da entrada da chave até o ponto de origem
-#define OUT_DISTANCE 500 // Distância da saída da chave até o ponto de origem
-#define IN_STOP 600 // Distância da entrada da chave até o ponto de origem
-#define OUT_STOP 10 // Distância da saída da chave até o ponto de origem
-#define STOP_DELTA 400 // A distância entre um ponto e o centro onde o volante deve começar a parar de forma a se alinhar com a origem, compensando a inércia
+#define COUNT -770 // Distância da entrada da chave até o ponto de origem
+#define PADDING 10
+
+#define STOP_POINT 400 // Distância de segurança para parar o volante
+#define IN_STOP (IN_DISTANCE - STOP_POINT) // Distância da entrada da chave até o ponto de origem
+#define OUT_STOP (IN_DISTANCE + STOP_POINT) // Distância da saída da chave até o ponto de origem
 #define LOG true
 #define SPEED 160
 
@@ -93,52 +94,53 @@ void setup() {
   sei();
 
   Idle();
+  acelera();
 }
 
 
 bool calibrado = false; // Indica que o volante está calibrado
 bool isCalibrating = false; // Indica que o volante está se deslocando para a origem
+bool stoped = true;
 unsigned long distance = 0;
+unsigned long inStop= 0;
+unsigned long outStop = 0;
 unsigned long stopPoint = 0;
+unsigned long marginIn = 0;
+unsigned long stepSpeed = 0;
+
 
 // Verifica o estado do volante
 void verifyPosition() {
-  if (!isCalibrating && last_sw != absolute_sw) { // Entrou ou saiu da chave
+  if (!isCalibrating && !calibrado && last_sw != absolute_sw) { // Entrou ou saiu da chave
     Idle(); // Começa a parar o volante
     last_sw = absolute_sw;
     isCalibrating = true;
-    count = 0;
-   if (!last_sw && absolute_sw) { // Entrou na chave
-     distance = IN_DISTANCE;
-     stopPoint = IN_STOP;
-   } else if (last_sw && !absolute_sw) { // Saiu da chave
-     distance = OUT_DISTANCE;
-     stopPoint = OUT_STOP;
-   }
+    count = COUNT;
   }
 }
 
 void calibrate() {
-  if (isCalibrating) {
-    // const unsigned long delta = distance - delta;
-    if (count == distance) {
-      Move(0); // move cw; // Manda o volante parar
-      isCalibrating = false; // Indica que o processo de calibração se encerrou
-      calibrado = true;
-    } else if (count > stopPoint) {
-      // Se passar ligar o volante no sentido contrário
-      // Isso diminui a inércia      
-      Move(SPEED, false); // Joga o volante pro outro lado;
-    } else {
-      // Caso na volta não pare no ponto certo
-      // Isso diminui a inércia      
-      Move(SPEED); // Joga o volante pro outro lado;
-    }
+  if (isCalibrating && !calibrado) {
+    if (count >= PADDING) {      
+      Move(SPEED-stepSpeed, false);
+      stepSpeed+=PADDING;
+     }
+     if (count <= -PADDING) {   
+        Move(SPEED-stepSpeed);
+        stepSpeed+=PADDING;
+     } 
+     if (count > -PADDING && count < PADDING) {
+       Move(0);
+       if (stepSpeed==SPEED) {
+         isCalibrating = false; // Indica que o processo de calibração se encerrou
+         calibrado = true;           
+       }
+     }
   }
 }
 
 void acelera() {
-  if (!calibrado) {
+  if (!calibrado && !isCalibrating) {
     Move(SPEED); // move cw
   } 
 }
@@ -151,16 +153,22 @@ unsigned long lastClickAt = 0;
 void loop() {
   char readGP = PINB & GPB;
 
-  acelera();
-   verifyPosition();
-   calibrate();
+  verifyPosition();
+  calibrate();
+//  Move(0); // move cw; // Manda o volante parar
 
   #if LOG
   // debug only info
-    if (millis()%300==0) {
+    if (millis()%300==0) {      
+      Serial.print(distance);
+      Serial.print(", ");
       Serial.print(count);
       Serial.print(", ");
-      Serial.println(absolute_sw==true?'1':'0'); 
+      Serial.print(absolute_sw==true?'1':'0'); 
+      Serial.print(", ");
+      Serial.print(calibrado==true?'1':'0'); 
+      Serial.print(", ");
+      Serial.println(isCalibrating==true?'1':'0'); 
     }
   #endif
 }
