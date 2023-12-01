@@ -17,9 +17,7 @@
 #define COUNT -770 // Distância da entrada da chave até o ponto de origem
 #define PADDING 10
 
-#define STOP_POINT 400 // Distância de segurança para parar o volante
-#define IN_STOP (IN_DISTANCE - STOP_POINT) // Distância da entrada da chave até o ponto de origem
-#define OUT_STOP (IN_DISTANCE + STOP_POINT) // Distância da saída da chave até o ponto de origem
+#define STOP false // Controle de debug
 #define LOG true
 #define SPEED 160
 
@@ -100,22 +98,19 @@ void setup() {
 
 bool calibrado = false; // Indica que o volante está calibrado
 bool isCalibrating = false; // Indica que o volante está se deslocando para a origem
-bool stoped = true;
 unsigned long distance = 0;
-unsigned long inStop= 0;
-unsigned long outStop = 0;
-unsigned long stopPoint = 0;
-unsigned long marginIn = 0;
 unsigned long stepSpeed = 0;
 
 
 // Verifica o estado do volante
 void verifyPosition() {
   if (!isCalibrating && !calibrado && last_sw != absolute_sw) { // Entrou ou saiu da chave
-    Idle(); // Começa a parar o volante
+    if (last_sw == 1 && absolute_sw == 0) {
+      Idle(); // Começa a parar o volante
+      isCalibrating = true;
+      count = COUNT;
+    }
     last_sw = absolute_sw;
-    isCalibrating = true;
-    count = COUNT;
   }
 }
 
@@ -153,22 +148,19 @@ unsigned long lastClickAt = 0;
 void loop() {
   char readGP = PINB & GPB;
 
-  verifyPosition();
-  calibrate();
-//  Move(0); // move cw; // Manda o volante parar
+  #if STOP
+    Move(0); // move cw; // Manda o volante parar
+  #else
+    verifyPosition();
+    calibrate();  
+  #endif
 
   #if LOG
   // debug only info
     if (millis()%300==0) {      
-      Serial.print(distance);
-      Serial.print(", ");
       Serial.print(count);
       Serial.print(", ");
-      Serial.print(absolute_sw==true?'1':'0'); 
-      Serial.print(", ");
-      Serial.print(calibrado==true?'1':'0'); 
-      Serial.print(", ");
-      Serial.println(isCalibrating==true?'1':'0'); 
+      Serial.println(absolute_sw==true?'1':'0'); ; 
     }
   #endif
 }
