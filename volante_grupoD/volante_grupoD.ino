@@ -24,11 +24,12 @@
 
 #include "Rotary.h"
 volatile long count = 0; // encoder_rotativo = posicao relativa depois de ligado
-volatile bool absolute_sw = true; // chave de posicao do volante ativa?
-volatile bool last_sw = absolute_sw;
+volatile bool absolute_sw = false; // chave de posicao do volante ativa?
+bool last_sw = false;
 
 Rotary r = Rotary(ROTARY_ENC_A, ROTARY_ENC_B);
 
+unsigned long lastVerify = 0; // Usado para debounce do last_sw
 
 // Habilita  Interrupção
 void initPWM() {
@@ -104,8 +105,9 @@ unsigned long stepSpeed = 0;
 
 // Verifica o estado do volante
 void verifyPosition() {
-  if (!isCalibrating && !calibrado && last_sw != absolute_sw) { // Entrou ou saiu da chave
-    if (last_sw == 1 && absolute_sw == 0) {
+  if (!isCalibrating && !calibrado && last_sw != absolute_sw && (millis() - lastVerify > 1)) { // Entrou ou saiu da chave
+    lastVerify = millis();
+    if (last_sw && !absolute_sw) { // Verifica se entrou na chave
       Idle(); // Começa a parar o volante
       isCalibrating = true;
       count = COUNT;
@@ -160,7 +162,9 @@ void loop() {
     if (millis()%300==0) {      
       Serial.print(count);
       Serial.print(", ");
-      Serial.println(absolute_sw==true?'1':'0'); ; 
+      Serial.print(absolute_sw==true?'1':'0'); 
+      Serial.print(", ");
+      Serial.println(last_sw==true?'1':'0'); 
     }
   #endif
 }
@@ -177,5 +181,5 @@ ISR(PCINT2_vect) {
     count++;
   }
 
-  absolute_sw = 0==(PINB&(1<<POS_SENSOR)); // true = dentro da chave | false = fora da chave
+  absolute_sw = 0==(PINB&(1<<POS_SENSOR)); // false = dentro da chave | true = fora da chave
 }
